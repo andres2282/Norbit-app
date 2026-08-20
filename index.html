@@ -1547,12 +1547,25 @@ let MK = null;          // MiniKit si estamos dentro de World App
 let cuenta = null;
 let modo = null;        // 'minikit' | 'metamask'
 
+/* ================= PEGA AQUI TU APP ID DEL DEVELOPER PORTAL =================
+   Lo encuentras en el portal, arriba, con formato app_xxxxxxxxxxxxxxxx        */
+const APP_ID = 'app_2e2fc9768e97e8e30fc1ee0830891aaa';
+/* =========================================================================== */
+
+let miniKitCargado = null;
 async function cargarMiniKit(){
+  if(miniKitCargado !== null) return miniKitCargado;
   try{
-    const m = await import('https://esm.sh/@worldcoin/minikit-js@1.9.6');
-    if(m.MiniKit && m.MiniKit.isInstalled && m.MiniKit.isInstalled()) return m.MiniKit;
-  }catch(e){ /* fuera de World App */ }
-  return null;
+    const { MiniKit } = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
+    MiniKit.install(APP_ID);          // sin esto isInstalled() siempre da falso
+    window._MiniKit = MiniKit;
+    console.log('MiniKit listo:', MiniKit.isInstalled());
+    miniKitCargado = MiniKit.isInstalled() ? MiniKit : false;
+  }catch(e){
+    console.error('MiniKit error:', e);
+    miniKitCargado = false;
+  }
+  return miniKitCargado || null;
 }
 
 async function conectar(){
@@ -1572,7 +1585,7 @@ async function conectar(){
       await window.ethereum.request({method:'wallet_switchEthereumChain', params:[{chainId:'0x1e0'}]});
     }catch(e){}
   } else {
-    throw new Error('Abre la app dentro de World App');
+    throw new Error('No se detecto World App. Si estas dentro de World App, revisa que el APP ID del archivo sea el de tu mini app.');
   }
   return cuenta;
 }
