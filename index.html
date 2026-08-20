@@ -1184,10 +1184,23 @@ function hasPlan(){ return S.plan!==null && S.planDays>0; }
 function planLocked(key){ return key!=='WLD' && !hasPlan(); }
 async function buyPlan(kind){
   const cost = kind==='week'?1:3, days = kind==='week'?7:30;
-  if((S.bal.USDC||0) < cost){ alert('Te faltan USDC en la boveda. Necesitas '+cost+' USDC.'); return; }
+  if((S.bal.USDC||0) < cost){
+    alert(T(
+      `La membresia se paga con el USDC de tu boveda, no de tu wallet.\n\nTienes ${n(S.bal.USDC||0,2)} USDC en la boveda y necesitas ${cost}. Ve a Boveda y deposita primero.`,
+      `Membership is paid from your vault balance, not your wallet.\n\nYou have ${n(S.bal.USDC||0,2)} USDC in the vault and need ${cost}. Go to Vault and deposit first.`));
+    document.querySelector('.nav button[data-v="vault"]').click();
+    return;
+  }
   if(S.live_wallet){
-    try{ await NORBIT.membresia(kind==='week'?0:1); await refrescarCadena(); }
-    catch(e){ alert('No se completo: '+(e.message||e)); }
+    const b=$('renewBtn');
+    try{
+      if(b){ b.disabled=true; b.textContent=T('Confirmando...','Confirming...'); }
+      await NORBIT.membresia(kind==='week'?0:1);
+      await refrescarCadena();
+    }
+    catch(e){ alert(T('No se completo: ','Failed: ')+(e.message||e)); }
+    if(b) b.disabled=false;
+    render();
     return;
   }
   S.bal.USDC-=cost;
@@ -1212,14 +1225,18 @@ function renderPlan(){
     ? `<div class="bal" style="padding-top:0"><span class="k">Activa</span><span class="v">${S.plan==='week'?'Semanal':'Mensual'}</span></div>
        <div class="bal"><span class="k">Le quedan</span><span class="v">${S.planDays} <small>dias</small></span></div>`
     : `<p class="hint" style="margin:0 0 12px">Estas en <b>modo gratis</b>: solo WLD / USDC y una escalera a la vez.</p>`;
+  // la tarjeta se elige, y el boton de abajo la paga
+  if(!S.planElegido) S.planElegido = 'week';
   document.querySelectorAll('#planCards .pcard').forEach(c=>{
-    c.classList.toggle('on', on && S.plan===c.dataset.p);
-    c.onclick=()=>buyPlan(c.dataset.p);
+    c.classList.toggle('on', S.planElegido===c.dataset.p);
+    c.onclick=()=>{ S.planElegido=c.dataset.p; render(); };
   });
-  $('planBtnBox').innerHTML = on
-    ? '<button class="ghost" id="renewBtn">Renovar o cambiar de plan</button>'
-    : '<button id="renewBtn">Activar membresia</button>';
-  $('renewBtn').onclick=()=>alert('Toca la tarjeta Semana o Mes para pagarla desde tu boveda.');
+  const costo = S.planElegido==='week' ? 1 : 3;
+  const etiqueta = on
+    ? T(`Renovar &middot; ${costo} USDC`, `Renew &middot; ${costo} USDC`)
+    : T(`Activar membresia &middot; ${costo} USDC`, `Activate membership &middot; ${costo} USDC`);
+  $('planBtnBox').innerHTML = `<button id="renewBtn">${etiqueta}</button>`;
+  $('renewBtn').onclick=()=>buyPlan(S.planElegido);
 
   $('tiers').innerHTML=TIERS.map(t=>{
     const mia = S.tk>=t.min && S.tk<t.max;
