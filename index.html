@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NORBIT — Bot de trading automatico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#060D1E; --panel:#0E1A33; --ink:#EAF1FF; --muted:#8AA2C8; --line:#1E2F52;
+    --buy:#1BD97B; --buy-soft:#0D2B21; --sell:#FF4D5E; --sell-soft:#2E1419;
+    --token:#2AA7FF; --token-soft:#0B2340; --warn:#F5A524; --warn-soft:#2A2010;
+    --gold:#F5A524; --gold-soft:#241A08; --navy:#04091A;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:15px;line-height:1.45;display:flex;justify-content:center;padding:0 0 84px}
+  .app{width:100%;max-width:460px;min-height:100vh}
+
+  .top{padding:14px 18px 13px;background:linear-gradient(135deg,#04091A 0%,#0A2350 60%,#0D3A7A 100%);
+    border-bottom:2px solid var(--token);box-shadow:0 0 22px rgba(42,167,255,.28);
+    position:sticky;top:0;z-index:20}
+  .top .brand h1{color:#fff;display:flex;align-items:center;gap:8px}
+  .logo{width:32px;height:32px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(42,167,255,.65))}
+  .top .pair{color:var(--token)}
+  .hdr-r{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .live{display:flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;letter-spacing:.12em;
+    color:var(--buy);text-transform:uppercase}
+  .live i{width:6px;height:6px;border-radius:50%;background:var(--buy);animation:lat 1.6s infinite}
+  @keyframes lat{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(27,217,123,.6)}50%{opacity:.55;box-shadow:0 0 0 5px rgba(27,217,123,0)}}
+  .top .price{color:#fff} .top .price .u{color:#93A9D4}
+  .brand{display:flex;align-items:baseline;justify-content:space-between}
+  .brand h1{font-family:'Familjen Grotesk',sans-serif;font-size:19px;font-weight:700;margin:0;letter-spacing:-.02em}
+  .pair{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.08em}
+  .price-row{display:flex;align-items:flex-end;gap:10px;margin-top:7px}
+  .price{font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:600;letter-spacing:-.03em;line-height:1}
+  .price .u{font-size:13px;color:var(--muted);margin-left:5px;font-weight:400}
+  .delta{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;padding:2px 7px;border-radius:4px;margin-bottom:4px}
+  .up{color:var(--buy);background:var(--buy-soft)} .down{color:var(--sell);background:var(--sell-soft)}
+
+  .view{display:none;padding:14px} .view.on{display:block}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.028) 0%,rgba(255,255,255,0) 60%),var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .card h2{font-family:'Familjen Grotesk',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.1em;margin:0 0 13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .card h2::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--token);flex:none}
+  .gold h2::before{background:var(--gold)}
+  [class*='Mono'],.price,.v,.p,.q,.pc,.ap,.plus,.rg,.big,.pp,input{font-variant-numeric:tabular-nums}
+
+  .ladder-wrap{background:linear-gradient(180deg,#0A1730 0%,#060D1E 100%);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;margin-bottom:12px}
+  .chartbar{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:9px 11px;border-bottom:1px solid var(--line)}
+  .tfs{display:flex;gap:2px}
+  .tffix{background:var(--token-soft);color:var(--token);font-size:11.5px;font-weight:700;
+    padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
+  .stats{display:flex;gap:11px;font-size:10.5px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+  .stats b{color:var(--ink);font-weight:600;margin-left:3px}
+  .stats b.up2{color:var(--buy)} .stats b.dn2{color:var(--sell)}
+  svg{display:block;width:100%;height:280px}
+  .lvl-line{stroke-dasharray:3 4;stroke-width:1} .lvl-line.done{stroke-dasharray:none;stroke-width:1.5}
+  .lvl-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500}
+  .pline{fill:none;stroke:#12B8FF;stroke-width:1.9;stroke-linejoin:round;
+    filter:drop-shadow(0 0 4px rgba(18,184,255,.55))}
+
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px;font-weight:600}
+  input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+    font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--ink);background:#091428}
+  input[type=text]{font-size:12px}
+  input:focus-visible{outline:2px solid var(--token);outline-offset:1px}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .hint b{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:600}
+
+  button{font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:600;border:none;border-radius:9px;
+    padding:13px;width:100%;cursor:pointer;color:#fff;
+    background:linear-gradient(135deg,#1B6EF3 0%,#12B8FF 100%);
+    box-shadow:0 0 16px rgba(27,110,243,.35)}
+  button:active{opacity:.75}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  button.stop{background:var(--sell);box-shadow:0 0 16px rgba(255,77,94,.3)}
+  button.sm{padding:9px;font-size:13px}
+  .duo{display:flex;gap:8px}
+
+  /* deslizadores */
+  .slrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .slrow label{margin:0}
+  .slbox{display:inline-flex;align-items:baseline;gap:1px;background:#091428;border:1px solid var(--line);
+    border-radius:8px;padding:4px 9px}
+  .slbox i{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted)}
+  input.slval{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;letter-spacing:-.02em;
+    width:52px;text-align:right;background:none;border:none;padding:0;border-radius:0}
+  input.slval::-webkit-outer-spin-button,input.slval::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input.slval{-moz-appearance:textfield}
+  input.slval:focus-visible{outline:none}
+  .slbox:focus-within{border-color:var(--token);box-shadow:0 0 0 2px rgba(42,167,255,.18)}
+  .slval.b{color:var(--buy)} .slval.s{color:var(--sell)} .slval.n{color:var(--token)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;
+    padding:0;border:none;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;
+    background:linear-gradient(90deg,var(--acc) 0%,var(--acc) var(--p),#16253F var(--p),#16253F 100%)}
+  input[type=range]::-moz-range-track{height:6px;border-radius:99px;
+    background:linear-gradient(90deg,var(--acc) 0%,var(--acc) var(--p),#16253F var(--p),#16253F 100%)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#fff;border:3px solid var(--acc);margin-top:-8px;cursor:grab;
+    box-shadow:0 2px 8px rgba(0,0,0,.5), 0 0 12px var(--acc)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;
+    border:3px solid var(--acc);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]:active::-webkit-slider-thumb{cursor:grabbing;transform:scale(1.08)}
+  .sl-b{--acc:var(--buy)} .sl-s{--acc:var(--sell)} .sl-n{--acc:var(--token)}
+  .slend{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;margin-top:2px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .chip{width:auto;flex:none;padding:8px 14px;border-radius:20px;background:var(--paper);
+    border:1px solid var(--line);color:var(--muted);font-size:13px;font-weight:600;
+    font-family:'IBM Plex Mono',monospace}
+  .chip.on{background:var(--token);color:#04091A;border-color:var(--token);box-shadow:0 0 12px rgba(42,167,255,.4)}
+  .chip.buy.on{background:var(--buy);border-color:var(--buy);color:#04140D;box-shadow:0 0 12px rgba(27,217,123,.35)}
+  .chip.sell.on{background:var(--sell);border-color:var(--sell);color:#fff;box-shadow:0 0 12px rgba(255,77,94,.3)}
+  .mkchips{margin-bottom:12px}
+  .mkchips .chip{font-family:'IBM Plex Sans',sans-serif}
+
+  .scan{margin-top:10px;border-top:1px solid var(--line);padding-top:11px}
+  .chk{display:flex;gap:8px;align-items:baseline;font-size:13px;padding:4px 0}
+  .chk .m{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-left:auto;font-weight:600}
+  .ok{color:var(--buy)} .bad{color:var(--sell)} .mid{color:var(--warn)}
+
+  .lvl{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .lvl:last-child{border-bottom:none}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--line)}
+  .dot.b{background:var(--buy)} .dot.s{background:var(--sell)}
+  .lvl .pc{font-family:'IBM Plex Mono',monospace;font-size:11.5px;width:50px;color:var(--muted);
+    font-weight:600;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lvl .p{font-family:'IBM Plex Mono',monospace;font-weight:600;width:72px;font-size:13px;flex:none;white-space:nowrap}
+  .lvl .q{color:var(--muted);font-size:12px;flex:1;font-family:'IBM Plex Mono',monospace;text-align:right}
+  .lvl .st{font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;padding:3px 6px;border-radius:4px;background:var(--paper);color:var(--muted)}
+  .st.hecho{background:var(--buy-soft);color:var(--buy)} .st.vendido{background:var(--sell-soft);color:var(--sell)}
+
+  .bal{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line)}
+  .bal:last-child{border-bottom:none}
+  .bal .k{font-size:14px;color:var(--muted)}
+  .bal .v{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600}
+  .bal .v small{font-size:11px;color:var(--muted);font-weight:400;margin-left:3px}
+
+  .ev{display:flex;gap:9px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+  .ev:last-child{border-bottom:none}
+  .ev .tag{font-size:10px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:4px}
+  .tag.c{background:var(--buy-soft);color:var(--buy)} .tag.v{background:var(--sell-soft);color:var(--sell)}
+  .tag.x{background:var(--warn-soft);color:var(--warn)}
+  .ev .txt{flex:1;font-family:'IBM Plex Mono',monospace;font-size:11.5px}
+  .ev .t{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:22px 10px}
+  .vacio{text-align:center;padding:34px 22px}
+  .vacio svg{width:46px;height:46px;color:var(--token);opacity:.55;margin-bottom:14px}
+  .vacio h3{font-family:'Familjen Grotesk',sans-serif;font-size:17px;margin:0 0 7px;font-weight:700}
+  .vacio p{color:var(--muted);font-size:13.5px;margin:0 0 18px;line-height:1.5}
+
+  .tok{background:var(--token-soft);border-color:#1B3E6B} .tok h2{color:var(--token)}
+  .feebox{display:flex;gap:8px;margin-bottom:12px}
+  .fee{flex:1;border:1px solid #1B3E6B;border-radius:9px;padding:10px;background:var(--panel);text-align:center}
+  .fee.act{border-color:var(--token);border-width:2px;padding:9px}
+  .fee .n{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--token)}
+  .fee .l{font-size:11px;color:var(--muted);margin-top:2px}
+
+  .nav{position:fixed;bottom:0;left:0;right:0;margin:0 auto;max-width:460px;
+    background:rgba(9,17,36,.94);backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);display:flex;padding:7px 4px calc(7px + env(safe-area-inset-bottom));z-index:30}
+  .nav button{background:none;color:var(--muted);font-size:10.5px;font-weight:600;padding:7px 2px 5px;
+    border-radius:9px;box-shadow:none;display:flex;flex-direction:column;align-items:center;gap:4px;
+    letter-spacing:.01em;position:relative;transition:color .18s}
+  .nav button .ic{width:21px;height:21px;display:block;opacity:.85}
+  .nav button.on{color:var(--token);background:none}
+  .nav button.on .ic{opacity:1;filter:drop-shadow(0 0 6px rgba(42,167,255,.75))}
+  .nav button.on::before{content:'';position:absolute;top:-7px;width:22px;height:2.5px;border-radius:2px;
+    background:var(--token);box-shadow:0 0 10px rgba(42,167,255,.9)}
+
+  .banner{display:flex;gap:9px;font-size:13px;background:var(--panel);border:1px solid var(--line);
+    border-left:3px solid var(--ink);border-radius:8px;padding:11px 12px;margin-bottom:12px;color:var(--muted)}
+  .banner b{color:var(--ink);font-weight:600}
+  .banner.alerta{background:var(--warn-soft);border-color:#4A3A12;border-left-color:var(--warn);color:#E8C078}
+  .banner.alerta b{color:#FFD98A}
+  /* airdrop / referidos */
+  .drop{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+  .drop:last-child{border-bottom:none}
+  .drop .ico{width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;
+    background:var(--token-soft);color:var(--token)}
+  .drop .body{flex:1}
+  .drop .ttl{font-size:14px;font-weight:600}
+  .drop .sub{font-size:12px;color:var(--muted)}
+  .drop .rw{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--token);white-space:nowrap}
+  .drop.hecho .rw{color:var(--buy)}
+  .drop.hecho .ico{background:var(--buy-soft);color:var(--buy)}
+  .plan{display:flex;gap:9px;margin-bottom:12px}
+  .pcard{flex:1;border:1px solid var(--line);border-radius:11px;padding:13px 10px;text-align:center;background:var(--paper)}
+  .pcard.on{border-color:var(--gold);border-width:2px;padding:12px 9px;background:#241A08;
+    box-shadow:0 0 14px rgba(245,165,36,.22)}
+  .pcard .pn{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  .pcard .pp{font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600;margin:4px 0 1px}
+  .pcard .pu{font-size:11px;color:var(--muted)}
+  .tier{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .tier:last-child{border-bottom:none}
+  .tier.mine{background:var(--token-soft);margin:0 -8px;padding:8px;border-radius:7px;border-bottom:none}
+  .tier .rg{font-family:'IBM Plex Mono',monospace;flex:1;font-size:12.5px}
+  .tier .ap{font-family:'IBM Plex Mono',monospace;font-weight:600;width:52px;text-align:right}
+  .tier .plus{font-family:'IBM Plex Mono',monospace;font-weight:600;width:56px;text-align:right;color:var(--gold)}
+  .stline{display:flex;gap:9px;align-items:baseline;font-size:14px;padding:3px 0}
+  .stline .pt{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+  .stline b{font-family:'IBM Plex Mono',monospace}
+  .lockchip{position:relative}
+  .soon{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--token);
+    background:var(--token-soft);border:1px solid #1B3E6B;border-radius:4px;padding:2px 6px;margin-left:7px}
+  .gold{background:linear-gradient(160deg,#241A08 0%,#12172A 100%);border-color:#4A3A12}
+  .gold h2{color:var(--gold)}
+  .gold .big{color:#9A6E04}
+  .pool{display:flex;gap:8px;margin-bottom:12px}
+  .pot{flex:1;text-align:center;border:1px solid var(--line);border-radius:10px;padding:12px 6px;background:var(--paper)}
+  .pot .n{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600}
+  .pot .l{font-size:11px;color:var(--muted);margin-top:2px}
+  .code{display:flex;gap:7px;align-items:center;background:#091428;border:1px dashed var(--token);
+    border-radius:9px;padding:11px 12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    word-break:break-all;margin-bottom:10px}
+  .big{font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-.02em}
+  .center{text-align:center}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brand"><h1><img class="logo" src="data:image/webp;base64,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" alt="">NORBIT</h1><span class="hdr-r"><span class="live"><i></i>EN VIVO</span><span class="pair" id="pairLbl">WLD / USDC</span></span></div>
+    <div class="price-row">
+      <span class="price"><span id="px">0.2800</span><span class="u" id="pxU">USDC</span></span>
+      <span class="delta up" id="dx">+0.00%</span>
+    </div>
+  </header>
+
+  <!-- ============ BOT ============ -->
+  <section class="view on" id="v-bot">
+
+    <div class="card">
+      <h2>Que vas a operar</h2>
+      <div class="chips mkchips" id="chips"></div>
+      <div id="customBox" style="display:none">
+        <div class="field">
+          <label>Contrato del token</label>
+          <input type="text" id="addr" placeholder="0x..." value="">
+        </div>
+        <button class="ghost sm" id="scanBtn">Analizar token</button>
+        <div class="scan" id="scanOut" style="display:none"></div>
+      </div>
+      <p class="hint" id="mktHint"></p>
+    </div>
+
+    <div class="card" id="statusCard" style="display:none">
+      <h2>Estado del bot</h2>
+      <div id="statusTxt"></div>
+    </div>
+
+    <div class="ladder-wrap">
+      <div class="chartbar">
+        <div class="tfs"><span class="tffix">15m</span></div>
+        <div class="stats">
+          <span>24h <b class="up2" id="st24h">0.00</b></span>
+          <span>Max <b id="stMax">&mdash;</b></span>
+          <span>Min <b id="stMin">&mdash;</b></span>
+        </div>
+      </div>
+      <svg id="chart" viewBox="0 0 460 280" preserveAspectRatio="none" aria-label="Grafico de velas"></svg>
+    </div>
+
+    <div class="card">
+      <h2>Compras en la bajada</h2>
+      <div class="field">
+        <label id="capLbl">Cuanto vas a usar</label>
+        <input type="number" id="cap" value="10" step="1" min="1">
+      </div>
+      <div class="field">
+        <div class="slrow"><label>En cuantas compras</label><span class="slbox"><input class="slval n" id="bnVal" type="number" inputmode="numeric" min="5" max="20" step="1" value="5"></span></div>
+        <input type="range" class="sl-n" id="bnR" min="5" max="20" step="1" value="5">
+        <div class="slend"><span>5</span><span>20</span></div>
+      </div>
+      <div class="field">
+        <div class="slrow"><label>Compra cada bajada de</label><span class="slbox"><input class="slval b" id="bsVal" type="number" inputmode="decimal" min="0.5" max="10" step="0.1" value="2.0"><i>%</i></span></div>
+        <input type="range" class="sl-b" id="bsR" min="0.5" max="10" step="0.1" value="2">
+        <div class="slend"><span>0.5%</span><span>10%</span></div>
+      </div>
+      <p class="hint" id="bHint"></p>
+    </div>
+
+    <div class="card">
+      <h2>Ventas en la subida</h2>
+      <div class="field">
+        <div class="slrow"><label>En cuantas ventas</label><span class="slbox"><input class="slval n" id="snVal" type="number" inputmode="numeric" min="5" max="20" step="1" value="5"></span></div>
+        <input type="range" class="sl-n" id="snR" min="5" max="20" step="1" value="5">
+        <div class="slend"><span>5</span><span>20</span></div>
+      </div>
+      <div class="field">
+        <div class="slrow"><label>Vende cada subida de</label><span class="slbox"><input class="slval s" id="ssVal" type="number" inputmode="decimal" min="2" max="10" step="0.1" value="3.0"><i>%</i></span></div>
+        <input type="range" class="sl-s" id="ssR" min="2" max="10" step="0.1" value="3">
+        <div class="slend"><span>2% minimo</span><span>10%</span></div>
+      </div>
+      <p class="hint" id="sHint"></p>
+    </div>
+
+    <div class="banner"><span>&#9873;</span><span>La escalera se arma sobre el <b>precio de este momento</b>. El bot nunca gasta mas de lo que pusiste y puedes cortar cuando quieras.</span></div>
+    <button id="go">Activar bot</button>
+  </section>
+
+  <!-- ============ NIVELES ============ -->
+  <section class="view" id="v-ord">
+    <div id="ordVacio" class="card vacio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <path d="M3 7h13M3 12h18M3 17h9"/><circle cx="19.5" cy="7" r="1.6"/><circle cx="14.5" cy="17" r="1.6"/>
+      </svg>
+      <h3>Todavia no hay niveles</h3>
+      <p>Configura tu escalera y activa el bot. Aqui vas a ver cada compra y cada venta, con su precio y su estado en vivo.</p>
+      <button id="irBot">Configurar el bot</button>
+    </div>
+    <div id="ordLista" style="display:none">
+      <div class="card"><h2>Compras programadas</h2><div id="listB"></div></div>
+      <div class="card"><h2>Ventas programadas</h2><div id="listS"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ BOVEDA ============ -->
+  <section class="view" id="v-vault">
+    <div class="card"><h2>Tu boveda</h2><div id="balList"></div></div>
+    <div class="card">
+      <h2>Cambiar USDC por WLD</h2>
+      <p class="hint" style="margin:0 0 11px">Los tokens nuevos casi siempre tienen par con WLD. Cambia aqui y el bot opera contra WLD.</p>
+      <div class="field"><label>Monto</label><input type="number" id="swapAmt" value="10" step="1" min="0"></div>
+      <div class="duo">
+        <button class="ghost sm" id="toWld">USDC &#8594; WLD</button>
+        <button class="ghost sm" id="toUsdc">WLD &#8594; USDC</button>
+      </div>
+      <p class="hint" id="swapHint"></p>
+    </div>
+    <div class="card">
+      <h2>Retirar</h2>
+      <p class="hint" style="margin:0 0 12px">Sale a tu misma wallet, siempre. Si tu escalera compro la mitad, retiras las dos monedas.</p>
+      <div id="wBtns"></div>
+    </div>
+    <div class="card">
+      <h2>Depositar</h2>
+      <div class="field"><label>Monto en USDC</label><input type="number" id="dep" value="10" step="1" min="1"></div>
+      <button id="depBtn">Depositar</button>
+    </div>
+  </section>
+
+  <!-- ============ GANAR ============ -->
+  <section class="view" id="v-air">
+
+    <div class="card gold center">
+      <h2 style="text-align:left">Premio de entrada</h2>
+      <div class="big" id="wldBig">0.000</div>
+      <p class="hint" style="margin-top:2px">WLD ganados por entrar cada dia</p>
+      <div style="margin-top:13px"><button id="claimBtn">Reclamar airdrop</button></div>
+      <p class="hint" id="claimHint"></p>
+      <div style="margin-top:12px">
+        <div class="bal"><span class="k">Tu racha</span><span class="v" id="streakV">0 <small>dias</small></span></div>
+        <div class="bal"><span class="k">Premio de hoy</span><span class="v" id="rateV">0.001 <small>WLD</small></span></div>
+      </div>
+      <p class="hint">A los <b>10 dias seguidos</b> el premio sube a <b>0.01 WLD</b> y se queda ahi. Si te saltas un dia, la racha vuelve a empezar.</p>
+    </div>
+
+    <div class="card tok center">
+      <h2 style="text-align:left">Tu saldo de NBT</h2>
+      <div class="big" id="tkBig">0</div>
+      <p class="hint" style="margin-top:4px">El token de NORBIT. Se gana con las misiones y las invitaciones, y se usa para el staking.</p>
+    </div>
+
+    <div class="card">
+      <h2>Misiones</h2>
+      <p class="hint" style="margin:0 0 12px">Cada mision te regala <b>NBT</b>.</p>
+      <div id="tasks"></div>
+    </div>
+
+    <div class="card">
+      <h2>Invita y gana</h2>
+      <p class="hint" style="margin:0 0 11px">Tu codigo es tu propia wallet. Ganas <b>25 NBT</b> por cada amigo que llegue a operar, y el amigo recibe <b>25 NBT</b> de bienvenida.</p>
+      <div class="code"><span id="myLink">norbit.app/?ref=0x7A3f...9C21</span></div>
+      <div class="duo">
+        <button class="ghost sm" id="copyBtn">Copiar enlace</button>
+        <button class="ghost sm" id="shareBtn">Compartir</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="bal"><span class="k">Amigos que ya operaron</span><span class="v" id="refN">0</span></div>
+        <div class="bal"><span class="k">NBT ganados</span><span class="v" id="refEarn">0 <small>NBT</small></span></div>
+      </div>
+      <div id="refList" style="margin-top:8px"></div>
+      <div class="banner alerta" style="margin:12px 0 0"><span>&#9888;</span><span>El premio se paga <b>cuando el invitado hace su primera operacion real</b>, no al registrarse.</span></div>
+      <div style="margin-top:10px"><button class="ghost sm" id="simRef">Simular: un amigo opero</button></div>
+    </div>
+  </section>
+
+  <!-- ============ TOKEN ============ -->
+  <section class="view" id="v-tok">
+
+    <div class="card gold">
+      <h2>Tu membresia</h2>
+      <div id="planState"></div>
+      <div class="plan" id="planCards">
+        <div class="pcard" data-p="week"><div class="pn">Semana</div><div class="pp">1</div><div class="pu">USDC / 7 dias</div></div>
+        <div class="pcard" data-p="month"><div class="pn">Mes</div><div class="pp">3</div><div class="pu">USDC / 30 dias</div></div>
+      </div>
+      <div id="planBtnBox"></div>
+      <p class="hint">Se paga desde tu boveda y hay que renovarla al vencer.</p>
+    </div>
+
+    <div class="card">
+      <h2>Que incluye</h2>
+      <div class="drop"><span class="ico">1</span><span class="body"><span class="ttl">Gratis</span><br>
+        <span class="sub">Solo el par WLD / USDC y una escalera activa a la vez.</span></span></div>
+      <div class="drop"><span class="ico" style="background:var(--gold-soft);color:var(--gold)">&#9733;</span>
+        <span class="body"><span class="ttl">Con membresia</span><br>
+        <span class="sub">Bitcoin, Ethereum y cualquier token que pegues, y varias escaleras a la vez.</span></span></div>
+    </div>
+
+    <div class="card">
+      <h2>Comision</h2>
+      <div class="bal"><span class="k">Comision de NORBIT</span><span class="v">0.25%</span></div>
+      <div class="bal"><span class="k">Comision del pool</span><span class="v">0.30%</span></div>
+      <div class="bal"><span class="k">Pagado en esta sesion</span><span class="v" id="feePaid">0.0000</span></div>
+      <p class="hint">La de NORBIT se cobra sobre lo que recibes en cada operacion, no sobre tu saldo. La del pool no es nuestra: la cobra Uniswap por el intercambio.</p>
+    </div>
+
+    <div class="card">
+      <h2>Staking de NBT <span class="soon">proximamente</span></h2>
+      <p class="hint" style="margin:0 0 12px">Mientras mas NBT guardes, mas rinde al ano. Con membresia activa suma <b>10 puntos</b> en cualquier escalon.</p>
+      <div class="tier" style="border-bottom:1px solid var(--line)">
+        <span class="rg" style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">Cuanto guardas</span>
+        <span class="ap" style="color:var(--muted);font-size:11px">Base</span>
+        <span class="plus" style="font-size:11px">Con plan</span>
+      </div>
+      <div id="tiers"></div>
+      <div class="bal" style="margin-top:10px"><span class="k">Tu rendimiento hoy</span><span class="v" id="myApy">&mdash;</span></div>
+      <p class="hint">El staking vive en su propio contrato: no toca tu boveda ni tus operaciones.</p>
+    </div>
+  </section>
+
+  <!-- ============ HISTORIAL ============ -->
+  <section class="view" id="v-his">
+    <div class="card"><h2>Ejecuciones</h2><div id="hist"><p class="empty">Todavia no hay operaciones.</p></div></div>
+  </section>
+
+  <nav class="nav">
+    <button class="on" data-v="bot"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4.5"/><circle cx="12" cy="3.2" r="1.3"/><path d="M9 13.5h.01M15 13.5h.01"/><path d="M9.5 16.8h5"/></svg><span>Bot</span></button>
+    <button class="" data-v="ord"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13M3 12h18M3 17h9"/><circle cx="19.5" cy="7" r="1.6"/><circle cx="14.5" cy="17" r="1.6"/></svg><span>Niveles</span></button>
+    <button class="" data-v="vault"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13.5" rx="3"/><path d="M2.5 10h19"/><path d="M17 14.6h1.6"/></svg><span>Boveda</span></button>
+    <button class="" data-v="air"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.3 4.9 5.2.7-3.8 3.7.9 5.3L12 15.6l-4.6 2.5.9-5.3L4.5 9.1l5.2-.7z"/></svg><span>Ganar</span></button>
+    <button class="" data-v="tok"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l7.5 3.2v5.4c0 4.3-3.1 8-7.5 9.3-4.4-1.3-7.5-5-7.5-9.3V6z"/><path d="M9.2 12.1l2 2 3.6-3.9"/></svg><span>Plan</span></button>
+    <button class="" data-v="his"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3 1.8"/></svg><span>Historial</span></button>
+  </nav>
+</div>
+
+<script>
+/* =========================================================
+   MAQUETA — todo simulado. Despues se conecta al contrato.
+   La escalera se calcula por PORCENTAJE sobre el precio
+   del momento en que se activa el bot. El usuario no
+   escribe ningun precio.
+   ========================================================= */
+
+const MARKETS = {
+  'WLD':    {base:'WLD', quote:'USDC', price:0.2800, ok:true},
+  'ETH':    {base:'ETH', quote:'USDC', price:3200.00, ok:true},
+  'BTC':    {base:'BTC', quote:'USDC', price:64000.00, ok:true},
+  'CUSTOM': {base:'???', quote:'WLD',  price:0.0085, ok:false}
+};
+
+const S = {
+  mkt:'WLD', base:'WLD', quote:'USDC',
+  price:0.28, open:0.28, anchor:0.28,
+  hist:[], bal:{USDC:40, WLD:0}, locked:0, spent:0, held:0, ops:0, simT:0, simAmp:0.12, cap:0, cycle:1, waveBase:0, invertido:0, recuperado:0, entryIdx:-1,
+  velas:[], vela:null, tf:2, tfN:0, MAXV:46,
+  lastSell:0, reentry:0, REENTRY:1,
+  buyN:5, buyStep:2, sellN:5, sellStep:3, MIN_SELL:2, MIN_OPS:5,
+  buy:[], sell:[], running:false,
+  fee:0.0025, feePaid:0,
+  events:[], scanned:true,
+  wallet:'0x7A3f9b2E4d81C05aA6f37Be1904cD2b8e5c19C21',
+  claimedToday:false, streak:0,
+  wldEarned:0, DAILY:0.001, BOOST:0.01, BOOST_AT:10,
+  plan:null, planDays:0, refEarn:0,
+  refs:[], refEarn:0,
+  tk:0,
+  tasks:[
+    {id:'dep', t:'Deposita tu primer USDC',       s:'Cualquier monto',         r:50,  done:false},
+    {id:'bot', t:'Activa el bot por primera vez', s:'En cualquier mercado',    r:100, done:false},
+    {id:'op',  t:'Completa 3 operaciones',        s:'Compras o ventas reales', r:150, done:false},
+    {id:'ref', t:'Invita a un amigo',             s:'Que llegue a operar',     r:25,  done:false},
+    {id:'cyc', t:'Deja que el bot cierre un ciclo', s:'Compro y vendio todo',  r:125, done:false}
+  ]
+};
+for(let i=0;i<90;i++) S.hist.push(0.28);
+
+const $=id=>document.getElementById(id);
+const dec=p=> p>=100?2 : p>=1?4 : p>=0.01?4 : 6;
+const fp=p=>p.toFixed(dec(p));
+const n=(v,d=2)=>(v||0).toLocaleString('es',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+document.querySelectorAll('.nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); $('v-'+b.dataset.v).classList.add('on');
+  };
+});
+
+/* ---------- mercados ---------- */
+function drawChips(){
+  const labels={WLD:'WLD',ETH:'Ethereum',BTC:'Bitcoin',CUSTOM:'Otro token'};
+  $('chips').innerHTML=Object.keys(labels).map(k=>
+    `<button class="chip ${S.mkt===k?'on':''}" data-k="${k}">${labels[k]}${planLocked(k)?' &#128274;':''}</button>`).join('');
+  document.querySelectorAll('#chips .chip').forEach(c=>c.onclick=()=>setMarket(c.dataset.k));
+}
+function setMarket(key){
+  if(S.running){alert('Deten el bot antes de cambiar de mercado.');return;}
+  if(planLocked(key)){
+    alert('Bitcoin, Ethereum y los tokens que pegues necesitan membresia.\n\nEn modo gratis puedes operar WLD / USDC.');
+    document.querySelector('.nav button[data-v="tok"]').click();
+    return;
+  }
+  S.mkt=key; const m=MARKETS[key];
+  S.base=m.base; S.quote=m.quote; S.price=m.price; S.open=m.price; S.anchor=m.price;
+  S.hist=[]; for(let i=0;i<90;i++) S.hist.push(m.price);
+  S.buy=[]; S.sell=[]; S.spent=0;
+  if(S.bal[S.base]===undefined) S.bal[S.base]=0;
+  if(S.bal[S.quote]===undefined) S.bal[S.quote]=0;
+  resetVelas();
+  $('customBox').style.display = key==='CUSTOM'?'block':'none';
+  $('scanOut').style.display='none';
+  S.scanned = key!=='CUSTOM';
+  drawChips(); render();
+}
+
+/* ---------- analisis simulado ---------- */
+$('scanBtn').onclick=()=>{
+  const a=$('addr').value.trim();
+  if(a.length<10){alert('Pega el contrato del token.');return;}
+  let h=0; for(const ch of a) h=(h*31+ch.charCodeAt(0))%9973;
+  const liq=800+(h%42000), tax=h%7, sellOk=h%11!==0, holders=40+(h%3000);
+  const sym='TK'+(h%100).toString().padStart(2,'0');
+  MARKETS.CUSTOM.base=sym; S.base=sym;
+  if(S.bal[sym]===undefined) S.bal[sym]=0;
+  MARKETS.CUSTOM.price=+(0.0005+(h%900)/100000).toFixed(6);
+  S.price=MARKETS.CUSTOM.price; S.open=S.price; S.anchor=S.price;
+  S.hist=[]; for(let i=0;i<90;i++) S.hist.push(S.price);
+  S.scanned = sellOk && liq>3000 && tax<5;
+  $('scanOut').style.display='block';
+  $('scanOut').innerHTML=`
+    <div class="chk"><span>Simbolo</span><span class="m">${sym}</span></div>
+    <div class="chk"><span>Liquidez en el pool</span><span class="m ${liq>3000?'ok':'bad'}">${n(liq,0)} WLD</span></div>
+    <div class="chk"><span>Impuesto al vender</span><span class="m ${tax===0?'ok':tax<5?'mid':'bad'}">${tax}%</span></div>
+    <div class="chk"><span>Prueba de venta</span><span class="m ${sellOk?'ok':'bad'}">${sellOk?'pasa':'NO SE PUEDE VENDER'}</span></div>
+    <div class="chk"><span>Poseedores</span><span class="m">${n(holders,0)}</span></div>
+    ${S.scanned
+      ? '<div class="banner" style="margin:11px 0 0"><span>&#10003;</span><span>Token operable. <b>Aun asi no esta verificado</b> &mdash; su precio puede irse a cero.</span></div>'
+      : '<div class="banner alerta" style="margin:11px 0 0"><span>&#9888;</span><span><b>No lo operes.</b> Este token no pasa las pruebas: podrias comprar y no poder vender.</span></div>'}`;
+  render();
+};
+
+/* ---------- chips de configuracion ---------- */
+function pintaSlider(el){
+  const p=((el.value-el.min)/(el.max-el.min))*100;
+  el.style.setProperty('--p', p.toFixed(1)+'%');
+}
+/* la rayita y el cuadrito escriben el mismo valor: se puede usar cualquiera */
+function atar(rangeId, textId, dec, set){
+  const r=$(rangeId), t=$(textId);
+  const min=+r.min, max=+r.max;
+  const aplica=(v, desdeTexto)=>{
+    if(isNaN(v)) return;
+    v = Math.min(max, Math.max(min, v));
+    if(dec===0) v = Math.round(v); else v = Math.round(v*10)/10;
+    set(v);
+    r.value = v; pintaSlider(r);
+    if(!desdeTexto) t.value = dec===0 ? v : v.toFixed(1);
+    render();
+  };
+  r.addEventListener('input', ()=>aplica(+r.value,false));
+  t.addEventListener('input', ()=>aplica(parseFloat(t.value),true));
+  t.addEventListener('blur',  ()=>{
+    const v=parseFloat(t.value);
+    if(isNaN(v)){ t.value = dec===0 ? r.value : (+r.value).toFixed(1); return; }
+    aplica(v,false);
+    if(v<min) aviso(`El minimo es ${min}${dec?'%':''}`);
+    if(v>max) aviso(`El maximo es ${max}${dec?'%':''}`);
+  });
+  aplica(+r.value,false);
+}
+function aviso(txt){ log('x',txt); }
+function drawConfig(){
+  atar('bnR','bnVal',0,v=>S.buyN=v);
+  atar('bsR','bsVal',1,v=>S.buyStep=v);
+  atar('snR','snVal',0,v=>S.sellN=v);
+  atar('ssR','ssVal',1,v=>S.sellStep=v);
+}
+$('cap').oninput=()=>render();
+
+/* ---------- construir escalera por porcentaje ---------- */
+function mkBuy(anchor,count,stepPct,total,offset){
+  // offset 0 = primer ciclo, incluye la compra de entrada a precio de mercado
+  // offset 1 = ciclos siguientes, ya no hay entrada: todas son en bajada
+  offset = offset||0;
+  const out=[];
+  for(let i=offset;i<offset+count;i++)
+    out.push({price:anchor*(1-stepPct*i/100), pct:-Math.round(stepPct*i*10)/10, amount:total/count, done:false});
+  return out;
+}
+function mkSell(anchor,count,stepPct){
+  const out=[];
+  for(let i=1;i<=count;i++)
+    out.push({price:anchor*(1+stepPct*i/100), pct:Math.round(stepPct*i*10)/10, amount:0, done:false});
+  return out;
+}
+
+/* ---------- activar / detener ---------- */
+$('go').onclick=()=>{
+  if(S.running){
+    // al cortar vuelve TODO: el quote sin gastar y el base ya comprado
+    S.bal[S.quote]+=S.locked; S.locked=0;
+    if(S.held>0){ S.bal[S.base]+=S.held; S.held=0; }
+    S.running=false; S.reentry=0;
+    $('go').textContent='Activar bot'; $('go').classList.remove('stop'); render(); return;
+  }
+  if(S.mkt==='CUSTOM' && S.scanned!==true){alert('Analiza el token primero. Si no pasa las pruebas, no se puede operar.');return;}
+  const cap=+$('cap').value;
+  if(cap>(S.bal[S.quote]||0)){alert('No te alcanza el '+S.quote+'. Cambia o deposita en la Boveda.');return;}
+  S.simT=0; S.held=0; S.spent=0; S.cycle=1; S.cap=cap; S.entryIdx=S.hist.length-1;
+  S.invertido=0; S.recuperado=0; S.waveBase=S.price;
+  // la onda tiene que cubrir la escalera entera para que se vean compras Y ventas
+  S.simAmp = Math.max(S.buyStep*S.buyN, S.sellStep*S.sellN)/100 * 1.15;
+  S.running=true; taskDone('bot');
+  startCycle(true);
+  doBuy(S.buy[0]);   // la primera entra ya, al precio del mercado
+  $('go').textContent='Detener y liberar capital'; $('go').classList.add('stop'); render();
+};
+
+/* ---------- motor ---------- */
+function tick(){
+  if(S.running){
+    // onda que barre toda la escalera: primero baja (compras) y despues sube (ventas)
+    S.simT++;
+    const wave = -Math.sin(S.simT/12) * S.simAmp;
+    const ruido = (Math.random()-0.5)*0.004;
+    S.price = Math.max(S.waveBase*0.2, S.waveBase*(1+wave+ruido));
+  } else {
+    S.price = Math.max(S.price*0.3, S.price+(Math.random()-0.5)*S.price*0.011);
+  }
+  S.hist.push(S.price);
+  if(S.hist.length>90){ S.hist.shift(); if(S.entryIdx>=0) S.entryIdx--; }
+  velaTick(S.price);
+
+  if(S.running){
+    // --- compras: el precio bajo hasta el nivel ---
+    S.buy.forEach(l=>{ if(!l.done && S.price<=l.price) doBuy(l); });
+    // --- ventas: el precio subio hasta el nivel ---
+    S.sell.forEach(l=>{
+      if(l.done || S.price < l.price) return;
+      if(S.held<=1e-12){
+        // el nivel se cruzo pero todavia no hay nada comprado
+        if(!l.warned){ l.warned=true; log('x',`Nivel +${l.pct}% alcanzado, pero aun no hay ${S.base} comprado`); }
+        return;
+      }
+      const pend=S.sell.filter(x=>!x.done).length;
+      const amt = pend<=1 ? S.held : S.held/pend;
+      if(amt<=1e-12) return;
+      const gross=amt*S.price, fee=gross*S.fee;
+      S.held-=amt; S.bal[S.quote]+=gross-fee; S.feePaid+=fee; l.done=true; S.recuperado+=gross-fee;
+      S.lastSell=S.price;
+      S.volume+=gross*(S.quote==='WLD'?MARKETS.WLD.price:1);
+      S.ops++; if(S.ops>=3) taskDone('op');
+      log('v',`${n(amt,6)} ${S.base} > ${n(gross-fee,2)} ${S.quote}  +${l.pct}%`);
+      rebalance();
+    });
+
+    // vendio TODO: no recompra de una, espera a que baje un poco desde la ultima venta
+    if(S.running && S.sell.every(l=>l.done) && S.held<=1e-9 && !S.reentry){
+      if(S.locked>0){ S.bal[S.quote]+=S.locked; S.locked=0; }
+      taskDone('cyc');
+      S.reentry = S.lastSell*(1-S.REENTRY/100);
+      log('x',`Vendio todo en ${fp(S.lastSell)}. Espera que baje a ${fp(S.reentry)} (-${S.REENTRY}%) para volver a comprar`);
+    }
+    // llego el precio de reentrada: arranca el ciclo nuevo con compra de entrada
+    if(S.running && S.reentry && S.price<=S.reentry){
+      S.reentry=0;
+      if(startCycle(false)) doBuy(S.buy[0]);
+    }
+  }
+  render();
+}
+function startCycle(first){
+  S.anchor = S.price;
+  const disponible = S.bal[S.quote]||0;
+  const cap = Math.min(S.cap, disponible);
+  if(cap <= 0.000001){
+    log('x','Se acabo el capital, el bot se detuvo');
+    S.running=false; $('go').textContent='Activar bot'; $('go').classList.remove('stop');
+    return false;
+  }
+  S.bal[S.quote]-=cap; S.locked=cap;
+  S.buy  = mkBuy(S.anchor, S.buyN, S.buyStep, cap, 0);
+  S.sell = mkSell(S.anchor, S.sellN, S.sellStep);
+  if(!first){
+    S.cycle++;
+    log('x',`Ciclo ${S.cycle}: se vendio todo, la escalera vuelve a armarse en ${fp(S.anchor)}`);
+  }
+  return true;
+}
+function doBuy(l){
+  if(l.done || S.locked < l.amount-1e-12) return false;
+  const gross=l.amount/S.price, fee=gross*S.fee;
+  S.locked-=l.amount; S.held+=gross-fee; S.spent+=l.amount; S.invertido+=l.amount;
+  S.feePaid+=fee*S.price; l.done=true;
+  S.volume+=l.amount*(S.quote==='WLD'?MARKETS.WLD.price:1);
+  S.ops++; if(S.ops>=3) taskDone('op');
+  log('c',`${n(l.amount,2)} ${S.quote} > ${n(gross-fee,6)} ${S.base}  ${l.pct===0?'a precio de mercado':l.pct+'%'}`);
+  rebalance();
+  return true;
+}
+function estado(){
+  if(!S.running) return '';
+  const P=(c,t)=>`<div class="stline"><span class="pt" style="background:${c}"></span><span>${t}</span></div>`;
+  let h='';
+  if(S.reentry){
+    h+=P('var(--warn)',`Vendio todo en <b>${fp(S.lastSell)}</b>. Espera que baje a <b>${fp(S.reentry)}</b> para volver a comprar.`);
+    h+=P('var(--muted)',`Faltan <b>${(((S.price/S.reentry)-1)*100).toFixed(2)}%</b> de bajada.`);
+    return h;
+  }
+  const compPend=S.buy.filter(l=>!l.done);
+  const ventPend=S.sell.filter(l=>!l.done);
+  if(S.held>1e-9 && ventPend.length){
+    h+=P('var(--sell)',`Tiene <b>${n(S.held,6)} ${S.base}</b>. Vende cuando llegue a <b>${fp(ventPend[0].price)}</b> (+${ventPend[0].pct}%).`);
+  }
+  if(compPend.length){
+    h+=P('var(--buy)',`Proxima compra si baja a <b>${fp(compPend[0].price)}</b>.`);
+  } else if(!ventPend.length){
+    h+=P('var(--muted)','Ciclo terminado.');
+  }
+  if(!compPend.length && ventPend.length && S.held>1e-9){
+    h+=P('var(--muted)','Ya uso todo el capital de este ciclo. Ahora solo espera para vender.');
+  }
+  h+=P('var(--token)',`Ciclo <b>${S.cycle}</b> &middot; vuelve a entrar <b>${S.REENTRY}%</b> por debajo de la ultima venta.`);
+  return h;
+}
+function velaTick(p){
+  if(!S.vela){ S.vela={o:p,h:p,l:p,c:p,i:S.velas.length}; }
+  S.vela.h=Math.max(S.vela.h,p); S.vela.l=Math.min(S.vela.l,p); S.vela.c=p;
+  S.tfN++;
+  if(S.tfN>=S.tf){
+    S.tfN=0; S.velas.push(S.vela);
+    if(S.velas.length>S.MAXV) S.velas.shift();
+    S.vela={o:p,h:p,l:p,c:p,i:S.velas.length};
+  }
+}
+function resetVelas(){
+  S.velas=[]; S.vela=null; S.tfN=0;
+  const p=S.price;
+  for(let k=0;k<S.MAXV;k++){
+    const o=S.hist[Math.max(0,S.hist.length-1-(S.MAXV-k))]||p;
+    S.velas.push({o,h:o*1.002,l:o*0.998,c:o});
+  }
+}
+function rebalance(){
+  const left=S.sell.filter(l=>!l.done); if(!left.length) return;
+  const each=S.held/left.length; left.forEach(l=>l.amount=each);
+}
+function log(t,txt){
+  S.events.unshift({type:t,txt,t:new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+  if(S.events.length>40) S.events.pop();
+}
+
+/* ---------- grafico ---------- */
+function chart(prevB,prevS){
+  const W=460,H=280,padR=52,padT=12,padB=12;
+  const vs=[...S.velas]; if(S.vela) vs.push(S.vela);
+  if(!vs.length) return;
+
+  const all=[...vs.map(v=>v.h),...vs.map(v=>v.l),
+             ...prevB.map(l=>l.price),...prevS.map(l=>l.price)];
+  if(S.running) all.push(S.anchor);
+  let lo=Math.min(...all), hi=Math.max(...all);
+  const pad=(hi-lo)*0.08||hi*0.03; lo-=pad; hi+=pad;
+  const y=p=>{
+    const v=H-padB-((p-lo)/(hi-lo))*(H-padT-padB);
+    return Math.min(H-2, Math.max(2, v));
+  };
+  const AW=(W-padR)/vs.length;              // ancho por vela
+  const cx=i=>i*AW+AW/2;
+  const bw=Math.max(2.2, AW*0.62);
+  let g='';
+
+  // --- rejilla y eje de precios a la derecha ---
+  for(let i=0;i<=4;i++){
+    const yy=padT+(H-padT-padB)*i/4;
+    const pv=hi-(hi-lo)*i/4;
+    g+=`<line x1="0" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="#152340" stroke-width="1"/>`;
+    g+=`<text x="${W-padR+6}" y="${(yy+3.5).toFixed(1)}" fill="#5C7096" style="font-family:'IBM Plex Mono',monospace;font-size:9.5px">${fp(pv)}</text>`;
+  }
+
+  // --- niveles de la escalera ---
+  const nivel=(l,color)=>{
+    const yy=y(l.price).toFixed(1);
+    g+=`<line x1="0" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="${color}" stroke-width="${l.done?1.3:1}"
+         stroke-dasharray="${l.done?'':'3 5'}" opacity="${l.done?.8:.3}"/>`;
+    if(l.done) g+=`<circle cx="${W-padR-5}" cy="${yy}" r="3" fill="${color}"/>`;
+  };
+  prevB.forEach(l=>nivel(l,'#1BD97B'));
+  prevS.forEach(l=>nivel(l,'#FF4D5E'));
+
+  // --- linea y punto de entrada ---
+  if(S.running){
+    const ya=+y(S.anchor).toFixed(1);
+    g+=`<line x1="0" y1="${ya}" x2="${W-padR}" y2="${ya}" stroke="#E7EEFB" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>`;
+    g+=`<text x="6" y="${ya-6}" fill="#E7EEFB" opacity=".95" style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600">ENTRADA ${fp(S.anchor)}</text>`;
+  }
+
+  // --- velas ---
+  vs.forEach((v,i)=>{
+    const sube=v.c>=v.o, col=sube?'#1BD97B':'#FF4D5E';
+    const x0=cx(i), yo=y(v.o), yc=y(v.c);
+    const top=Math.min(yo,yc), alto=Math.max(1.5,Math.abs(yc-yo));
+    g+=`<line x1="${x0.toFixed(1)}" y1="${y(v.h).toFixed(1)}" x2="${x0.toFixed(1)}" y2="${y(v.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+    g+=`<rect x="${(x0-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${alto.toFixed(1)}" fill="${col}" rx="0.5"/>`;
+  });
+
+  // --- precio actual ---
+  const yp=+y(S.price).toFixed(1);
+  g+=`<line x1="0" y1="${yp}" x2="${W-padR}" y2="${yp}" stroke="#12B8FF" stroke-width="1" stroke-dasharray="2 3" opacity=".8"/>`;
+  const ry=Math.min(H-19,Math.max(1,yp-9));
+  g+=`<rect x="${W-padR+2}" y="${ry}" width="${padR-4}" height="18" rx="3" fill="#12B8FF"/>`;
+  g+=`<text x="${W-padR+6}" y="${ry+12.5}" fill="#04091A" style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700">${fp(S.price)}</text>`;
+
+  $('chart').innerHTML=g;
+
+  // --- estadisticas de la barra ---
+  const his=vs.map(v=>v.h), los=vs.map(v=>v.l);
+  $('stMax').textContent=fp(Math.max(...his));
+  $('stMin').textContent=fp(Math.min(...los));
+  const ref=vs[0].o, d=((S.price/ref-1)*100);
+  const e=$('st24h'); e.textContent=(d>=0?'+':'')+d.toFixed(2)+'%';
+  e.className=d>=0?'up2':'dn2';
+}
+
+/* ---------- render ---------- */
+function render(){
+  const cap=+$('cap').value||0;
+  const anchor = S.running ? S.anchor : S.price;
+  const prevB = S.running ? S.buy  : mkBuy(anchor,S.buyN,S.buyStep,cap);
+  const prevS = S.running ? S.sell : mkSell(anchor,S.sellN,S.sellStep);
+
+  $('pairLbl').textContent=S.base+' / '+S.quote;
+  $('px').textContent=fp(S.price); $('pxU').textContent=S.quote;
+  const d=((S.price/S.open-1)*100);
+  const dx=$('dx'); dx.textContent=(d>=0?'+':'')+d.toFixed(2)+'%';
+  dx.className='delta '+(d>=0?'up':'down');
+
+  chart(prevB,prevS);
+
+  $('capLbl').textContent='Cuanto vas a usar ('+S.quote+')';
+  const last=prevB.length?prevB[prevB.length-1]:null;
+  $('bHint').innerHTML = last
+    ? `La primera compra entra <b>ya, al precio de ahora</b>. Despues <b>${n(cap/S.buyN,2)} ${S.quote}</b> cada <b>${S.buyStep}%</b> de bajada. Cuando venda las ${S.sellN} posiciones, <b>vuelve a armar la escalera solo</b> y sigue.`
+    : '';
+  const lastS=prevS.length?prevS[prevS.length-1]:null;
+  $('sHint').innerHTML = lastS
+    ? `Vende <b>1/${S.sellN}</b> de lo comprado cada <b>${S.sellStep}%</b> de subida sobre el precio de entrada. Ultima venta en <b>${fp(lastS.price)}</b> (+${(S.sellStep*S.sellN).toFixed(0)}%).<br>Cada ciclo paga <b>~1.1%</b> entre comisiones, asi que abajo de 2% no queda margen.`
+    : '';
+  $('mktHint').innerHTML = `Operando <b>${S.base}</b> y pagando con <b>${S.quote}</b>. Disponible: <b>${n(S.bal[S.quote]||0,4)} ${S.quote}</b>`;
+
+  const row=(l,k)=>{
+    const sinNada = k==='s' && !l.done && S.running && S.held<=1e-12;
+    const cant = k==='b' ? n(l.amount,2)+' '+S.quote
+               : (S.held>0 ? n(l.amount,6)+' '+S.base : 'sin '+S.base+' aun');
+    return `<div class="lvl">
+      <span class="dot ${k}"></span>
+      <span class="pc">${l.pct===0?'ahora':(l.pct>0?'+':'')+l.pct+'%'}</span>
+      <span class="p">${fp(l.price)}</span>
+      <span class="q">${cant}</span>
+      <span class="st ${l.done?(k==='b'?'hecho':'vendido'):''}">${l.done?(k==='b'?'comprado':'vendido'):(sinNada?'sin saldo':'espera')}</span></div>`;
+  };
+  const est=estado();
+  ['bnR','bsR','snR','ssR','bnVal','bsVal','snVal','ssVal'].forEach(id=>{ if($(id)) $(id).disabled = S.running; });
+  $('statusCard').style.display = est ? 'block' : 'none';
+  $('statusTxt').innerHTML = est;
+  // los niveles solo se listan cuando el bot ya esta corriendo
+  $('ordVacio').style.display = S.running ? 'none' : 'block';
+  $('ordLista').style.display = S.running ? 'block' : 'none';
+  if(S.running){
+    $('listB').innerHTML=S.buy.map(l=>row(l,'b')).join('');
+    $('listS').innerHTML=S.sell.map(l=>row(l,'s')).join('');
+  }
+
+  let bl='';
+  Object.keys(S.bal).forEach(k=>{
+    bl+=`<div class="bal"><span class="k">${k} libre</span><span class="v">${n(S.bal[k],k==='USDC'?2:6)}</span></div>`;
+  });
+  bl+=`<div class="bal"><span class="k">${S.quote} reservado en la escalera</span><span class="v">${n(S.locked,2)}</span></div>`;
+  bl+=`<div class="bal"><span class="k">${S.base} comprado por el bot</span><span class="v">${n(S.held,6)}</span></div>`;
+  bl+=`<div class="bal"><span class="k">Precio promedio de compra</span><span class="v">${S.held>1e-9?fp(S.spent/S.held):'&mdash;'}</span></div>`;
+  // ganancia real = lo que entro por ventas - lo que salio en compras
+  //                  + lo que todavia vale el base sin vender.
+  // El capital reservado (locked) no es ni ganancia ni perdida: es tuyo, sin usar.
+  const gan=S.recuperado-S.invertido+S.held*S.price;
+  bl+=`<div class="bal"><span class="k">Ciclo del bot</span><span class="v">${S.running?S.cycle:'&mdash;'}</span></div>`;
+  bl+=`<div class="bal"><span class="k">Ganancia del bot</span><span class="v" style="color:${gan>=0?'var(--buy)':'var(--sell)'}">${gan>=0?'+':''}${n(gan,4)} <small>${S.quote}</small></span></div>`;
+  $('balList').innerHTML=bl;
+
+  $('wBtns').innerHTML=Object.keys(S.bal).map(k=>
+    `<button class="ghost sm" data-w="${k}" style="margin-bottom:7px">Retirar ${k} (${n(S.bal[k],k==='USDC'?2:6)})</button>`).join('');
+  document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.w;
+    if(S.bal[k]<=0) return alert('No hay '+k+' disponible.');
+    alert('Retirando '+n(S.bal[k],6)+' '+k+' a tu wallet.');
+    S.bal[k]=0; if(k===S.base){S.spent=0;rebalance();} render();
+  });
+
+  renderPlan(); drawChips();
+  $('wldBig').textContent=S.wldEarned.toFixed(3);
+  $('claimBtn').textContent=S.claimedToday?'Ya reclamado hoy':'Reclamar airdrop';
+  $('claimHint').innerHTML=S.claimedToday
+    ? 'Vuelve manana para no perder la racha.'
+    : 'Entra todos los dias. Es poco, pero es tuyo y va directo a tu boveda.';
+  $('streakV').innerHTML=S.streak+' <small>dias</small>';
+  $('rateV').innerHTML=dailyRate().toFixed(3)+' <small>WLD</small>';
+  $('tasks').innerHTML=S.tasks.map((t,i)=>`<div class="drop ${t.done?'hecho':''}">
+      <span class="ico">${t.done?'&#10003;':i+1}</span>
+      <span class="body"><span class="ttl">${t.t}</span><br><span class="sub">${t.s}</span></span>
+      <span class="rw">+${t.r}</span></div>`).join('');
+  $('myLink').textContent='norbit.app/?ref='+S.wallet.slice(0,6)+'...'+S.wallet.slice(-4);
+  $('refN').textContent=S.refs.length;
+  $('refEarn').innerHTML=n(S.refEarn,0)+' <small>NBT</small>';
+  $('tkBig').textContent=n(S.tk,0);
+  $('refList').innerHTML=S.refs.length
+    ? S.refs.slice(0,5).map(r=>`<div class="ev"><span class="tag c">ACTIVO</span><span class="txt">${r.w}</span><span class="t">${r.d}</span></div>`).join('')
+    : '';
+
+  $('swapHint').innerHTML=`Precio de referencia: <b>1 WLD = ${n(MARKETS.WLD.price,4)} USDC</b>`;
+  $('feePaid').textContent=n(S.feePaid,4);
+
+  $('hist').innerHTML=S.events.length
+    ? S.events.map(e=>`<div class="ev"><span class="tag ${e.type}">${e.type==='c'?'COMPRA':e.type==='v'?'VENTA':'AVISO'}</span><span class="txt">${e.txt}</span><span class="t">${e.t}</span></div>`).join('')
+    : '<p class="empty">Todavia no hay operaciones.</p>';
+}
+
+/* ---------- membresia ---------- */
+function hasPlan(){ return S.plan!==null && S.planDays>0; }
+function planLocked(key){ return key!=='WLD' && !hasPlan(); }
+function buyPlan(kind){
+  const cost = kind==='week'?1:3, days = kind==='week'?7:30;
+  if((S.bal.USDC||0) < cost){ alert('Te faltan USDC en la boveda. Necesitas '+cost+' USDC.'); return; }
+  S.bal.USDC-=cost;
+  if(S.plan===kind) S.planDays+=days; else { S.plan=kind; S.planDays=days; }
+  log('c','Membresia '+(kind==='week'?'semanal':'mensual')+': -'+cost+' USDC');
+  render();
+}
+const TIERS=[
+  {min:1,       max:100,     label:'1 &ndash; 100',           apy:0.5},
+  {min:100,     max:1000,    label:'100 &ndash; 1 000',       apy:1},
+  {min:1000,    max:1000000, label:'1 000 &ndash; 1 000 000', apy:10},
+  {min:1000000, max:5000000, label:'1M &ndash; 5M',           apy:25},
+  {min:5000000, max:Infinity,label:'5M en adelante',          apy:50}
+];
+function apyFor(amount, plan){
+  const t=TIERS.find(x=>amount>=x.min && amount<x.max) || TIERS[0];
+  return t.apy + (plan?10:0);
+}
+function renderPlan(){
+  const on=hasPlan();
+  $('planState').innerHTML = on
+    ? `<div class="bal" style="padding-top:0"><span class="k">Activa</span><span class="v">${S.plan==='week'?'Semanal':'Mensual'}</span></div>
+       <div class="bal"><span class="k">Le quedan</span><span class="v">${S.planDays} <small>dias</small></span></div>`
+    : `<p class="hint" style="margin:0 0 12px">Estas en <b>modo gratis</b>: solo WLD / USDC y una escalera a la vez.</p>`;
+  document.querySelectorAll('#planCards .pcard').forEach(c=>{
+    c.classList.toggle('on', on && S.plan===c.dataset.p);
+    c.onclick=()=>buyPlan(c.dataset.p);
+  });
+  $('planBtnBox').innerHTML = on
+    ? '<button class="ghost" id="renewBtn">Renovar o cambiar de plan</button>'
+    : '<button id="renewBtn">Activar membresia</button>';
+  $('renewBtn').onclick=()=>alert('Toca la tarjeta Semana o Mes para pagarla desde tu boveda.');
+
+  $('tiers').innerHTML=TIERS.map(t=>{
+    const mia = S.tk>=t.min && S.tk<t.max;
+    return `<div class="tier ${mia?'mine':''}"><span class="rg">${t.label}</span>
+      <span class="ap">${t.apy}%</span><span class="plus">${t.apy+10}%</span></div>`;
+  }).join('');
+  $('myApy').innerHTML = S.tk>=1
+    ? apyFor(S.tk,on).toFixed(2)+'% <small>anual</small>'
+    : '&mdash; <small>gana NBT primero</small>';
+}
+
+/* ---------- airdrop / referidos ---------- */
+function taskDone(id){
+  const t=S.tasks.find(x=>x.id===id);
+  if(t && !t.done){ t.done=true; S.tk+=t.r; log('x',`Mision cumplida: +${t.r} NBT`); }
+}
+function dailyRate(){ return S.streak>=S.BOOST_AT ? S.BOOST : S.DAILY; }
+$('claimBtn').onclick=()=>{
+  if(S.claimedToday){alert('Ya reclamaste hoy. Vuelve manana y sube la racha.');return;}
+  S.streak++;
+  const amt=dailyRate();
+  S.wldEarned+=amt; S.bal.WLD+=amt; S.claimedToday=true;
+  log('c','Airdrop diario: +'+amt+' WLD (dia '+S.streak+')');
+  render();
+};
+$('copyBtn').onclick=()=>{
+  const l='norbit.app/?ref='+S.wallet;
+  if(navigator.clipboard) navigator.clipboard.writeText(l);
+  alert('Enlace copiado:\n'+l);
+};
+$('shareBtn').onclick=()=>alert('Se abriria el menu de compartir del telefono con tu enlace.');
+$('simRef').onclick=()=>{
+  const h=Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');
+  S.refs.unshift({w:'0x'+h+'...'+h.slice(0,4), d:new Date().toLocaleDateString('es')});
+  S.refEarn+=25; S.tk+=25; taskDone('ref');
+  log('x','Referido activo: +25 NBT');
+  render();
+};
+
+/* ---------- boveda ---------- */
+$('depBtn').onclick=()=>{S.bal.USDC+=+$('dep').value||0;taskDone('dep');render();};
+$('toWld').onclick=()=>{const a=+$('swapAmt').value||0,r=MARKETS.WLD.price;
+  if(a>S.bal.USDC) return alert('No tienes tanto USDC.'); S.bal.USDC-=a; S.bal.WLD+=a/r; render();};
+$('toUsdc').onclick=()=>{const a=+$('swapAmt').value||0,r=MARKETS.WLD.price;
+  if(a>S.bal.WLD) return alert('No tienes tanto WLD.'); S.bal.WLD-=a; S.bal.USDC+=a*r; render();};
+
+
+$('irBot').onclick=()=>document.querySelector('.nav button[data-v="bot"]').click();
+drawChips(); drawConfig(); resetVelas(); setInterval(tick,900); render();
+</script>
+</body>
+</html>
