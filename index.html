@@ -1294,11 +1294,20 @@ async function refrescarCadena(){
     S.planDays = b.socio ? 1 : 0;
     S.ordenesCadena = b.ordenes;
     if(b.ordenes.length){
-      const o = await NORBIT.orden(b.ordenes[b.ordenes.length-1]);
+      const id = b.ordenes[b.ordenes.length-1];
+      const o = await NORBIT.ordenCompleta(id);
+      S.ordenId = id;
       S.locked = o.quoteLibre; S.held = o.baseComprado; S.cycle = o.ciclos+1;
       S.running = o.abierta;
+      S.anchor = o.anchor;
+      S.buy = o.compras; S.sell = o.ventas;      // los niveles reales del contrato
+      S.buyN = o.buyN; S.buyStep = o.buyStep;
+      S.sellN = o.sellN; S.sellStep = o.sellStep;
       $('go').textContent = o.abierta ? 'Cerrar escalera' : 'Activar bot';
       $('go').classList.toggle('stop', o.abierta);
+    } else {
+      S.running = false; S.buy = []; S.sell = [];
+      $('go').textContent = 'Activar bot'; $('go').classList.remove('stop');
     }
     render();
   }catch(e){ console.warn('refresco', e); }
@@ -1375,10 +1384,9 @@ $('go').onclick = async ()=>{
   if(!S.live_wallet || S.demo) return activarSimulado();
   try{
     if(S.running){
-      const ids = S.ordenesCadena||[];
-      if(!ids.length) return;
+      if(S.ordenId===undefined) return;
       $('go').textContent='Cerrando...';
-      await NORBIT.cerrarOrden(ids[ids.length-1]);
+      await NORBIT.cerrarOrden(S.ordenId);
     } else {
       const cap=+$('cap').value||0;
       if(cap > S.bal.USDC) return alert('No te alcanza el USDC en la boveda.');
@@ -1574,7 +1582,8 @@ const LEER_ABI = [
   'function isMember(address) view returns (bool)',
   'function userOrders(address) view returns (uint256[])',
   'function estadoOrden(uint256) view returns (bool,uint256,uint256,uint256,uint32)',
-  'function claimInfo(address) view returns (bool,uint256,uint16,uint256)'
+  'function claimInfo(address) view returns (bool,uint256,uint16,uint256)',
+  'function getOrder(uint256) view returns (tuple(address user,address base,address quote,uint256 anchor,uint256 chunkQuote,uint256 remainingQuote,uint256 baseHeld,uint256 quoteBank,uint256 lastSellPrice,uint32 cycles,uint16 buySteps,uint16 buyStepBps,uint16 sellSteps,uint16 sellStepBps,uint32 buyDone,uint32 sellDone,bool open))'
 ];
 
 const lector = new ethers.JsonRpcProvider(RPC, 480);
@@ -1657,6 +1666,44 @@ window.NORBIT = {
     const r = await vaultRead.estadoOrden(id);
     return { abierta:r[0], quoteLibre:fu(r[1],'USDC'), baseComprado:fu(r[2],'WLD'),
              banco:fu(r[3],'USDC'), ciclos:Number(r[4]) };
+  },
+
+  /** La orden completa, con sus niveles ya calculados */
+  async ordenCompleta(id){
+    const o = await vaultRead.getOrder(id);
+    const anchor = Number(o.anchor) / 1e6;          // USDC por 1 WLD
+    const chunk  = fu(o.chunkQuote,'USDC');
+    const bDone  = Number(o.buyDone), sDone = Number(o.sellDone);
+    const compras = [], ventas = [];
+    for(let i=0;i<Number(o.buySteps);i++){
+      compras.push({
+        price: anchor * (1 - Number(o.buyStepBps)*i/10000),
+        pct:   -Math.round(Number(o.buyStepBps)*i)/100,
+        amount: chunk,
+        done: (bDone & (1<<i)) !== 0
+      });
+    }
+    const held = fu(o.baseHeld,'WLD');
+    const pendientes = [];
+    for(let i=1;i<=Number(o.sellSteps);i++){
+      const hecho = (sDone & (1<<i)) !== 0;
+      const v = {
+        price: anchor * (1 + Number(o.sellStepBps)*i/10000),
+        pct:   Math.round(Number(o.sellStepBps)*i)/100,
+        amount: 0, done: hecho
+      };
+      ventas.push(v);
+      if(!hecho) pendientes.push(v);
+    }
+    if(pendientes.length) pendientes.forEach(v=> v.amount = held / pendientes.length);
+
+    return { abierta:o.open, anchor, compras, ventas,
+             quoteLibre: fu(o.remainingQuote,'USDC'),
+             baseComprado: held,
+             banco: fu(o.quoteBank,'USDC'),
+             ciclos: Number(o.cycles),
+             buyN: Number(o.buySteps), buyStep: Number(o.buyStepBps)/100,
+             sellN: Number(o.sellSteps), sellStep: Number(o.sellStepBps)/100 };
   },
 
   async premio(){
