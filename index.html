@@ -743,6 +743,9 @@ $('go').onclick=()=>{
 
 /* ---------- motor ---------- */
 function tick(){
+  // Con la wallet conectada la verdad esta en el contrato: nunca se simulan
+  // compras ni ventas, porque marcarian niveles como ejecutados sin serlo.
+  if(S.live_wallet){ render(); return; }
   if(!S.demo){          // en modo real el precio lo manda el pool, no la simulacion
     if(S.running) motorBot();
     return;
@@ -935,14 +938,29 @@ async function cargarMercado(){
     S.price = S.velas[S.velas.length-1].c;
     m.price = S.price;
     S.hist=[]; for(let i=0;i<90;i++) S.hist.push(S.price);
-    S.live = true; S.demo = false;
+    S.live = true; S.demo = false; S.fallos = 0;
     pintaModo();
     fuente(`${m.nombrePool||m.base+'/'+m.quote} · datos en vivo`);
     autoAncla();
   }catch(e){
-    S.live=false; S.demo=true; pintaModo();
-    fuente('Sin datos del pool — modo demostracion');
-    resetVelas();
+    console.warn('cargarMercado', e);
+    S.fallos = (S.fallos||0)+1;
+    if(S.fallos < 4){
+      // la API limita las consultas por minuto: se reintenta en vez de rendirse
+      fuente(T(`Reintentando (${S.fallos}/3)...`, `Retrying (${S.fallos}/3)...`));
+      cargando=false;
+      setTimeout(cargarMercado, 3000*S.fallos);
+      return;
+    }
+    if(S.live_wallet){
+      S.live=false;
+      fuente(T('No se pudo leer el pool. Toca aqui para reintentar.',
+               'Could not read the pool. Tap here to retry.'));
+    } else {
+      S.live=false; S.demo=true; pintaModo();
+      fuente(T('Sin datos del pool — modo demostracion','No pool data — demo mode'));
+      resetVelas();
+    }
   }
   cargando=false;
   render();
@@ -955,6 +973,7 @@ async function refrescar(){
   if(!m.pool) return;
   try{
     const p = await precioPool(m.pool, m.token);
+    if(typeof p.cambio === 'number') S.cambio24 = p.cambio;
     if(p.precio>0){
       S.price=p.precio;
       velaTick(S.price);
@@ -1084,7 +1103,7 @@ function render(){
 
   $('pairLbl').textContent=S.base+' / '+S.quote;
   $('px').textContent=fp(S.price); $('pxU').textContent=S.quote;
-  const d=((S.price/S.open-1)*100);
+  const d = (S.live && typeof S.cambio24==='number') ? S.cambio24 : ((S.price/S.open-1)*100);
   const dx=$('dx'); dx.textContent=(d>=0?'+':'')+d.toFixed(2)+'%';
   dx.className='delta '+(d>=0?'up':'down');
 
@@ -1285,6 +1304,11 @@ $('toUsdc').onclick=()=>{const a=+$('swapAmt').value||0,r=MARKETS.WLD.price;
 
 
 $('modoBtn').onclick=()=>{
+  if(S.live_wallet){
+    alert(T('Con la wallet conectada la app siempre usa datos reales.',
+            'With your wallet connected the app always uses real data.'));
+    return;
+  }
   if(S.running){ alert('Deten el bot antes de cambiar de modo.'); return; }
   S.demo=!S.demo; pintaModo();
   if(S.demo){
@@ -1295,6 +1319,8 @@ $('modoBtn').onclick=()=>{
   }
   render();
 };
+$('fuenteTxt').onclick=()=>{ S.fallos=0; cargarMercado(); };
+$('fuenteTxt').style.cursor='pointer';
 $('irBot').onclick=()=>document.querySelector('.nav button[data-v="bot"]').click();
 
 /* ============ ENLACE CON LA CADENA ============ */
