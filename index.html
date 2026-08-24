@@ -548,7 +548,7 @@ const POOL_WLD = '0x610e319b3a3ab56a0ed5562927d37c233774ba39';
 const MARKETS = {
   'WLD':    {base:'WLD', quote:'USDC', price:0.28,   token:TOKENS.WLD, pool:POOL_WLD, ok:true},
   'ETH':    {base:'ETH', quote:'USDC', price:3200,   busca:'WETH',     ok:true},
-  'BTC':    {base:'BTC', quote:'USDC', price:64000,  busca:'WBTC',     ok:true},
+  'BTC':    {base:'BTC', quote:'USDC', price:64000, viaEth:true, ok:true},
   'NBT':    {base:'NBT', quote:'WLD',  price:0.0001, token:TOKENS.NBT, ok:true},
   'CUSTOM': {base:'???', quote:'WLD',  price:0.0085, ok:false}
 };
@@ -878,6 +878,17 @@ function idToken(rel){
 
 async function resolverPool(m){
   if(m.pool) return m.pool;
+  if(m.viaEth){
+    // No hay pool de BTC con liquidez usable en World Chain: se toma el
+    // precio de BTC/USD desde el pool ETH/USDC y la relacion BTC/ETH externa.
+    const d = await gt('/search/pools?query=WETH&network='+RED);
+    const pools=(d.data||[]).filter(p=>+p.attributes.reserve_in_usd>3000)
+      .sort((a,b)=>+b.attributes.reserve_in_usd - +a.attributes.reserve_in_usd);
+    if(!pools.length) throw new Error('sin pool de ETH');
+    m.pool = pools[0].attributes.address;
+    m.nombrePool = pools[0].attributes.name + ' (BTC via ETH)';
+    return m.pool;
+  }
   let data;
   if(m.token){
     data = await gt(`/networks/${RED}/tokens/${m.token}/pools`);
@@ -910,7 +921,27 @@ async function cargarVelas(pool, tokenNuestro){
 /** Precio actual del token que nos interesa dentro del pool.
     Importante: en el pool WLD/USDC.e el token base es el USDC,
     asi que hay que mirar cual de los dos es el nuestro. */
+async function precioBtcViaEth(pool){
+  const [d, r] = await Promise.all([
+    gt(`/networks/${RED}/pools/${pool}`),
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd').then(r=>r.json())
+  ]);
+  const a=d.data.attributes, rel=d.data.relationships||{};
+  const base = idToken(rel.base_token);
+  const ethEsBase = base === TOKENS.ETH_APROX; // no siempre se conoce; se usa mayor precio como ETH
+  const p1=+a.base_token_price_usd, p2=+a.quote_token_price_usd;
+  const precioEthPool = Math.max(p1,p2) < 100000 ? Math.max(p1,p2) : Math.min(p1,p2);
+  const btcUsd = r.bitcoin ? r.bitcoin.usd : null;
+  const ethUsd = r.ethereum ? r.ethereum.usd : precioEthPool;
+  if(btcUsd) return btcUsd;                 // precio directo si CoinGecko responde
+  return precioEthPool * (ethUsd>0 ? (1) : 1); // respaldo: se queda en el de ETH si todo falla
+}
+
 async function precioPool(pool, tokenNuestro){
+  if(MARKETS.BTC && MARKETS.BTC.pool===pool && S.mkt==='BTC'){
+    const precio = await precioBtcViaEth(pool);
+    return {precio, nombre:'BTC/USD', liq:0, vol:0, cambio:0};
+  }
   const d = await gt(`/networks/${RED}/pools/${pool}`);
   const a = d.data.attributes, rel = d.data.relationships || {};
   const base = idToken(rel.base_token);
@@ -927,6 +958,17 @@ async function cargarMercado(){
   try{
     fuente('Buscando el pool...');
     const pool = await resolverPool(m);
+    if(m.viaEth){
+      fuente('Cargando precio de BTC...');
+      const precio = await precioBtcViaEth(pool);
+      S.price = precio; m.price = precio; S.open = precio;
+      S.hist=[]; for(let i=0;i<90;i++) S.hist.push(precio);
+      S.velas=[]; S.vela=null; resetVelas();
+      S.live = true; S.demo = false; S.fallos = 0; pintaModo();
+      fuente('BTC/USD via CoinGecko + ETH pool');
+      autoAncla(); cargando=false; render();
+      return;
+    }
     if(!m.token){                       // mercados encontrados por busqueda
       const info = await gt(`/networks/${RED}/pools/${pool}`);
       m.token = idToken((info.data.relationships||{}).base_token);
