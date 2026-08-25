@@ -1666,18 +1666,11 @@ document.querySelectorAll('.langpill .lp').forEach(b=> b.onclick=()=>{
 
 $('welcomeBtn').onclick = async ()=>{
   const b=$('welcomeBtn');
-  if(b.disabled) return;               // evita doble toque mientras espera
   b.disabled=true; b.textContent = T('Conectando...','Connecting...');
-  $('wHint').textContent = T('Un momento, verificando World App...','One moment, checking World App...');
-  try{
-    const ok = await conectarWallet();
-    if(ok){ document.getElementById('langModal').classList.add('off'); return; }
-    $('wHint').textContent = T('No se pudo conectar. Intenta de nuevo.','Could not connect. Try again.');
-  }catch(e){
-    console.error('welcomeBtn', e);
-    $('wHint').textContent = T('Error de conexion. Cierra y abre NORBIT de nuevo.','Connection error. Close and reopen NORBIT.');
-  }
-  b.disabled=false; b.textContent = T('Conectar wallet','Connect wallet');
+  const ok = await conectarWallet();
+  b.disabled=false;
+  if(ok){ document.getElementById('langModal').classList.add('off'); }
+  else  { b.textContent = T('Conectar wallet','Connect wallet'); }
 };
 
 /* Al abrir la app se conecta sola: dentro de World App la wallet
@@ -1766,19 +1759,8 @@ const fu = (v, sim) => Number(ethers.formatUnits(v, DEC[sim]));
 
 async function esperarMiniKit(){
   let i=0;
-  // espera hasta 8s, y si el modulo de MiniKit tardo o fallo, reintenta cargarlo
-  while(typeof window.__miniKitLoaded === 'undefined' && !(window._MiniKit||window.MiniKit) && i < 80){
+  while(typeof window.__miniKitLoaded === 'undefined' && i < 30){
     await new Promise(r=>setTimeout(r,100)); i++;
-  }
-  console.log('esperarMiniKit: espera='+i+'x100ms, __miniKitLoaded='+window.__miniKitLoaded+', MiniKit presente='+!!(window._MiniKit||window.MiniKit));
-  if(window.__miniKitLoaded === false){
-    // el primer intento fallo (red lenta, CDN caido): se reintenta una vez mas
-    try{
-      const { MiniKit } = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
-      MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
-      window._MiniKit = MiniKit;
-      window.__miniKitLoaded = true;
-    }catch(e){ console.error('MiniKit reintento fallo:', e); }
   }
   return window._MiniKit || window.MiniKit;
 }
@@ -1951,28 +1933,19 @@ window.NORBIT = {
   }
 };
 document.dispatchEvent(new Event('norbit-listo'));
-
-/* Carga de MiniKit en el MISMO bloque, ejecutada de inmediato. Antes vivia
-   en un <script type="module"> aparte: los modulos siempre corren DESPUES
-   de los scripts normales sin importar el orden en el archivo, asi que
-   esperarMiniKit() arrancaba antes de que MiniKit siquiera empezara a
-   cargar. Con top-level await dentro de un modulo unico, en orden. */
 </script>
 
 <script type="module">
-window.__miniKitLoaded = undefined;
-try{
-  const mod = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
-  const MiniKit = mod.MiniKit;
-  if(!MiniKit) throw new Error('MiniKit no exporto MiniKit');
-  MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
-  window._MiniKit = MiniKit;
-  window.__miniKitLoaded = true;
-  console.log('MiniKit cargado. isInstalled():', MiniKit.isInstalled ? MiniKit.isInstalled() : '(sin isInstalled)');
-}catch(e){
-  console.error('MiniKit no se pudo cargar:', e);
-  window.__miniKitLoaded = false;
-}
+  try{
+    const { MiniKit } = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
+    MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
+    window._MiniKit = MiniKit;
+    window.__miniKitLoaded = true;
+    console.log('MiniKit listo:', MiniKit.isInstalled());
+  }catch(e){
+    console.error('MiniKit error:', e);
+    window.__miniKitLoaded = false;
+  }
 </script>
 
 </body>
