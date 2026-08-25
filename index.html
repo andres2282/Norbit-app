@@ -357,6 +357,16 @@
       <p class="hint" id="sHint"></p>
     </div>
 
+    <div class="card">
+      <h2>Cuando vendio todo</h2>
+      <div class="field">
+        <div class="slrow"><label>Vuelve a comprar si baja</label><span class="slbox"><input class="slval b" id="reVal" type="number" inputmode="decimal" min="0.5" max="10" step="0.1" value="1.0"><i>%</i></span></div>
+        <input type="range" class="sl-b" id="reR" min="0.5" max="10" step="0.1" value="1">
+        <div class="slend"><span>0.5%</span><span>10%</span></div>
+      </div>
+      <p class="hint" style="margin:0" id="reHint"></p>
+    </div>
+
     <div class="banner"><span>&#9873;</span><span>La escalera se arma sobre el <b>precio de este momento</b>. El bot nunca gasta mas de lo que pusiste y puedes cortar cuando quieras.</span></div>
     <button id="go">Activar bot</button>
   </section>
@@ -495,7 +505,7 @@
     </div>
 
     <div class="card">
-      <h2>Staking de NBT <span class="soon">proximamente</span></h2>
+      <h2>Staking de NBT</h2>
       <p class="hint" style="margin:0 0 12px">Mientras mas NBT guardes, mas rinde al ano. Con membresia activa suma <b>10 puntos</b> en cualquier escalon.</p>
       <div class="tier" style="border-bottom:1px solid var(--line)">
         <span class="rg" style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">Cuanto guardas</span>
@@ -503,9 +513,22 @@
         <span class="plus" style="font-size:11px">Con plan</span>
       </div>
       <div id="tiers"></div>
-      <div class="bal" style="margin-top:10px"><span class="k">Tu rendimiento hoy</span><span class="v" id="myApy">&mdash;</span></div>
-      <p class="hint">El staking vive en su propio contrato: no toca tu boveda ni tus operaciones.</p>
-      <div class="code" style="margin-top:11px"><span>NBT &middot; 0xA7C8...26fC</span></div>
+      <div class="bal" style="margin-top:10px"><span class="k">Guardado</span><span class="v" id="stkAmt">0 <small>NBT</small></span></div>
+      <div class="bal"><span class="k">Sin cobrar</span><span class="v" id="stkPend">0.00 <small>NBT</small></span></div>
+      <div class="bal"><span class="k">Tu rendimiento anual</span><span class="v" id="myApy">&mdash;</span></div>
+
+      <div class="field" style="margin-top:12px">
+        <label>Cuanto NBT quieres guardar</label>
+        <input type="number" id="stkIn" value="0" min="0" step="1">
+      </div>
+      <div class="duo">
+        <button id="stkBtn">Guardar</button>
+        <button class="ghost" id="unstkBtn">Sacar</button>
+      </div>
+      <div style="margin-top:9px"><button class="ghost" id="clmBtn">Cobrar disponible</button></div>
+
+      <p class="hint" style="margin-top:12px">El staking vive en su propio contrato: no toca tu boveda ni tus operaciones.</p>
+      <div class="code" style="margin-top:11px"><span>NBT &middot; 0xA7C822537C925F73de25C449C48D60d07E1026fC</span></div>
     </div>
   </section>
 
@@ -567,6 +590,7 @@ const S = {
   claimedToday:false, streak:0,
   wldEarned:0, DAILY:0.001, BOOST:0.01, BOOST_AT:10,
   plan:null, planDays:0, refEarn:0,
+  stkAmt:0, stkPend:0, stkApy:0,
   refs:[], refEarn:0,
   tk:0,
   tasks:[
@@ -699,6 +723,7 @@ function drawConfig(){
   atar('bsR','bsVal',1,v=>S.buyStep=v);
   atar('snR','snVal',0,v=>S.sellN=v);
   atar('ssR','ssVal',1,v=>S.sellStep=v);
+  atar('reR','reVal',1,v=>S.REENTRY=v);
 }
 $('cap').oninput=()=>render();
 
@@ -1161,6 +1186,7 @@ function render(){
     ? `Vende <b>1/${S.sellN}</b> de lo comprado cada <b>${S.sellStep}%</b> de subida sobre el precio de entrada. Ultima venta en <b>${fp(lastS.price)}</b> (+${(S.sellStep*S.sellN).toFixed(0)}%).<br>Cada ciclo paga <b>~1.1%</b> entre comisiones, asi que abajo de 2% no queda margen.`
     : '';
   $('mktHint').innerHTML = `Operando <b>${S.base}</b> y pagando con <b>${S.quote}</b>. Disponible: <b>${n(S.bal[S.quote]||0,4)} ${S.quote}</b>`;
+  const rh=$('reHint'); if(rh) rh.innerHTML = `Vendio las ${S.sellN} posiciones, espera y vuelve a comprar <b>${S.REENTRY}%</b> mas barato que la ultima venta.`;
 
   const row=(l,k)=>{
     const sinNada = k==='s' && !l.done && S.running && S.held<=1e-12;
@@ -1174,7 +1200,7 @@ function render(){
       <span class="st ${l.done?(k==='b'?'hecho':'vendido'):''}">${l.done?(k==='b'?'comprado':'vendido'):(sinNada?'sin saldo':'espera')}</span></div>`;
   };
   const est=estado();
-  ['bnR','bsR','snR','ssR','bnVal','bsVal','snVal','ssVal'].forEach(id=>{ if($(id)) $(id).disabled = S.running; });
+  ['bnR','bsR','snR','ssR','bnVal','bsVal','snVal','ssVal','reR','reVal'].forEach(id=>{ if($(id)) $(id).disabled = S.running; });
   $('statusCard').style.display = est ? 'block' : 'none';
   $('statusTxt').innerHTML = est;
   // los niveles solo se listan cuando el bot ya esta corriendo
@@ -1304,9 +1330,12 @@ function renderPlan(){
     return `<div class="tier ${mia?'mine':''}"><span class="rg">${t.label}</span>
       <span class="ap">${t.apy}%</span><span class="plus">${t.apy+10}%</span></div>`;
   }).join('');
-  $('myApy').innerHTML = S.tk>=1
-    ? apyFor(S.tk,on).toFixed(2)+'% <small>anual</small>'
-    : '&mdash; <small>gana NBT primero</small>';
+  $('myApy').innerHTML = S.live_wallet
+    ? (S.stkApy||0).toFixed(2)+'% <small>anual</small>'
+    : (S.tk>=1 ? apyFor(S.tk,on).toFixed(2)+'% <small>anual</small>' : '&mdash;');
+  $('stkAmt').innerHTML = n(S.stkAmt||0,0)+' <small>NBT</small>';
+  $('stkPend').innerHTML = n(S.stkPend||0,4)+' <small>NBT</small>';
+  $('clmBtn').disabled = !(S.stkPend>0);
 }
 
 /* ---------- airdrop / referidos ---------- */
@@ -1363,6 +1392,38 @@ $('modoBtn').onclick=()=>{
 };
 $('fuenteTxt').onclick=()=>{ S.fallos=0; cargarMercado(); };
 $('fuenteTxt').style.cursor='pointer';
+$('stkBtn').onclick = async ()=>{
+  if(!S.live_wallet) return alert(T('Conecta tu wallet primero.','Connect your wallet first.'));
+  const m=+$('stkIn').value||0;
+  if(m<=0) return;
+  if(m>(S.tk||0)) return alert(T('No tienes tanto NBT.','You do not have that much NBT.'));
+  const b=$('stkBtn');
+  try{ b.disabled=true; b.textContent=T('Confirmando...','Confirming...');
+       await NORBIT.guardarNBT(m); await refrescarCadena(); }
+  catch(e){ alert(T('No se completo: ','Failed: ')+(e.message||e)); }
+  b.disabled=false; b.textContent=T('Guardar','Stake'); render();
+};
+$('unstkBtn').onclick = async ()=>{
+  if(!S.live_wallet) return alert(T('Conecta tu wallet primero.','Connect your wallet first.'));
+  const m=+$('stkIn').value||0;
+  if(m<=0) return;
+  if(m>(S.stkAmt||0)) return alert(T('No tienes tanto guardado.','You have not staked that much.'));
+  const b=$('unstkBtn');
+  try{ b.disabled=true; b.textContent=T('Confirmando...','Confirming...');
+       await NORBIT.sacarNBT(m); await refrescarCadena(); }
+  catch(e){ alert(T('No se completo: ','Failed: ')+(e.message||e)); }
+  b.disabled=false; b.textContent=T('Sacar','Unstake'); render();
+};
+$('clmBtn').onclick = async ()=>{
+  if(!S.live_wallet) return alert(T('Conecta tu wallet primero.','Connect your wallet first.'));
+  if((S.stkPend||0)<=0) return alert(T('No hay nada para cobrar todavia.','Nothing to claim yet.'));
+  const b=$('clmBtn');
+  try{ b.disabled=true; b.textContent=T('Confirmando...','Confirming...');
+       await NORBIT.cobrarStaking(); await refrescarCadena(); }
+  catch(e){ alert(T('No se completo: ','Failed: ')+(e.message||e)); }
+  b.disabled=false; b.textContent=T('Cobrar disponible','Claim available'); render();
+};
+
 $('irBot').onclick=()=>document.querySelector('.nav button[data-v="bot"]').click();
 
 /* ============ ENLACE CON LA CADENA ============ */
@@ -1375,6 +1436,10 @@ async function refrescarCadena(){
     if(!b) return;
     S.bal.USDC = b.USDC; S.bal.WLD = b.WLD;
     S.tk = b.NBT;
+    try{
+      const st = await NORBIT.staking();
+      if(st){ S.stkAmt=st.amount; S.stkPend=st.pendiente; S.stkApy=st.apy; }
+    }catch(e){}
     S.plan = b.socio ? 'week' : null;
     S.planDays = b.socio ? 1 : 0;
     S.ordenesCadena = b.ordenes;
@@ -1601,11 +1666,18 @@ document.querySelectorAll('.langpill .lp').forEach(b=> b.onclick=()=>{
 
 $('welcomeBtn').onclick = async ()=>{
   const b=$('welcomeBtn');
+  if(b.disabled) return;               // evita doble toque mientras espera
   b.disabled=true; b.textContent = T('Conectando...','Connecting...');
-  const ok = await conectarWallet();
-  b.disabled=false;
-  if(ok){ document.getElementById('langModal').classList.add('off'); }
-  else  { b.textContent = T('Conectar wallet','Connect wallet'); }
+  $('wHint').textContent = T('Un momento, verificando World App...','One moment, checking World App...');
+  try{
+    const ok = await conectarWallet();
+    if(ok){ document.getElementById('langModal').classList.add('off'); return; }
+    $('wHint').textContent = T('No se pudo conectar. Intenta de nuevo.','Could not connect. Try again.');
+  }catch(e){
+    console.error('welcomeBtn', e);
+    $('wHint').textContent = T('Error de conexion. Cierra y abre NORBIT de nuevo.','Connection error. Close and reopen NORBIT.');
+  }
+  b.disabled=false; b.textContent = T('Conectar wallet','Connect wallet');
 };
 
 /* Al abrir la app se conecta sola: dentro de World App la wallet
@@ -1655,6 +1727,15 @@ setInterval(refrescar,20000);   // precio real cada 20 s (limite de la API)
 const APP_ID = 'app_2e2fc9768e97e8e30fc1ee0830891aaa';
 const RPC   = 'https://worldchain-mainnet.g.alchemy.com/public';
 const VAULT = '0xb25a08a55c37c2407902509875cA4b55EA946988';
+const REWARDS = '0x2508239e454b847A40e449d382601F90f7525Dde';
+const REWARDS_ABI = [
+  'function stakes(address) view returns (uint128 amount, uint64 since, uint128 accrued)',
+  'function pending(address) view returns (uint256)',
+  'function apyBpsOf(address) view returns (uint16)',
+  'function claimable(address) view returns (uint256 premios, uint256 rendimiento)'
+];
+const rewardsRead = new ethers.Contract(REWARDS, REWARDS_ABI, lector);
+
 const TOK = {
   USDC: '0x79A02482A880bCE3F13e09Da970dC34db4CD24d1',
   WLD : '0x2cFc85d8E48F8EAB294be644d9E25C3030863003',
@@ -1685,8 +1766,19 @@ const fu = (v, sim) => Number(ethers.formatUnits(v, DEC[sim]));
 
 async function esperarMiniKit(){
   let i=0;
-  while(typeof window.__miniKitLoaded === 'undefined' && i < 30){
+  // espera hasta 8s, y si el modulo de MiniKit tardo o fallo, reintenta cargarlo
+  while(typeof window.__miniKitLoaded === 'undefined' && !(window._MiniKit||window.MiniKit) && i < 80){
     await new Promise(r=>setTimeout(r,100)); i++;
+  }
+  console.log('esperarMiniKit: espera='+i+'x100ms, __miniKitLoaded='+window.__miniKitLoaded+', MiniKit presente='+!!(window._MiniKit||window.MiniKit));
+  if(window.__miniKitLoaded === false){
+    // el primer intento fallo (red lenta, CDN caido): se reintenta una vez mas
+    try{
+      const { MiniKit } = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
+      MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
+      window._MiniKit = MiniKit;
+      window.__miniKitLoaded = true;
+    }catch(e){ console.error('MiniKit reintento fallo:', e); }
   }
   return window._MiniKit || window.MiniKit;
 }
@@ -1796,6 +1888,34 @@ window.NORBIT = {
     return { listo:r[0], monto:fu(r[1],'WLD'), racha:Number(r[2]), faltan:Number(r[3]) };
   },
 
+  async staking(){
+    if(!cuenta) return null;
+    const [st, cl, apy] = await Promise.all([
+      rewardsRead.stakes(cuenta),
+      rewardsRead.claimable(cuenta),
+      rewardsRead.apyBpsOf(cuenta)
+    ]);
+    return { amount: fu(st.amount,'NBT'), pendiente: fu(cl[1]+cl[0],'NBT'),
+             premios: fu(cl[0],'NBT'), rendimiento: fu(cl[1],'NBT'),
+             apy: Number(apy)/100 };
+  },
+
+  async guardarNBT(monto){
+    const cant = u(monto,'NBT');
+    return enviar([
+      { to:TOK.NBT,   data:encodeCall('approve(address,uint256)',['address','uint256'],[REWARDS,cant]) },
+      { to:REWARDS,   data:encodeCall('stake(uint256)',['uint256'],[cant]) }
+    ]);
+  },
+
+  async sacarNBT(monto){
+    return enviar([{ to:REWARDS, data:encodeCall('unstake(uint256)',['uint256'],[u(monto,'NBT')]) }]);
+  },
+
+  async cobrarStaking(){
+    return enviar([{ to:REWARDS, data:encodeCall('claim()',[],[]) }]);
+  },
+
   async depositar(monto){
     const cant = u(monto,'USDC');
     return enviar([
@@ -1831,19 +1951,28 @@ window.NORBIT = {
   }
 };
 document.dispatchEvent(new Event('norbit-listo'));
+
+/* Carga de MiniKit en el MISMO bloque, ejecutada de inmediato. Antes vivia
+   en un <script type="module"> aparte: los modulos siempre corren DESPUES
+   de los scripts normales sin importar el orden en el archivo, asi que
+   esperarMiniKit() arrancaba antes de que MiniKit siquiera empezara a
+   cargar. Con top-level await dentro de un modulo unico, en orden. */
 </script>
 
 <script type="module">
-  try{
-    const { MiniKit } = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
-    MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
-    window._MiniKit = MiniKit;
-    window.__miniKitLoaded = true;
-    console.log('MiniKit listo:', MiniKit.isInstalled());
-  }catch(e){
-    console.error('MiniKit error:', e);
-    window.__miniKitLoaded = false;
-  }
+window.__miniKitLoaded = undefined;
+try{
+  const mod = await import('https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js/+esm');
+  const MiniKit = mod.MiniKit;
+  if(!MiniKit) throw new Error('MiniKit no exporto MiniKit');
+  MiniKit.install('app_2e2fc9768e97e8e30fc1ee0830891aaa');
+  window._MiniKit = MiniKit;
+  window.__miniKitLoaded = true;
+  console.log('MiniKit cargado. isInstalled():', MiniKit.isInstalled ? MiniKit.isInstalled() : '(sin isInstalled)');
+}catch(e){
+  console.error('MiniKit no se pudo cargar:', e);
+  window.__miniKitLoaded = false;
+}
 </script>
 
 </body>
